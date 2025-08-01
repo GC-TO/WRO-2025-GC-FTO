@@ -1,0 +1,182 @@
+inventor_hub = InventorHub(top_side=Axis.Z, front_side=Axis.X)
+color_sensor = ColorSensor(Port.A)
+d_derecho = UltrasonicSensor(Port.C)
+d_izquierdo = UltrasonicSensor(Port.B)
+watch_2 = StopWatch()
+traccion = Motor(Port.F, Direction.CLOCKWISE)
+direccion = Motor(Port.D, Direction.CLOCKWISE)
+tiempo_final=2000 #SEGUNDOS DE AVANCE PARA FINALIZAR PROCESO
+
+tiempos_espera_derecho = []
+tiempos_espera_izquierdo = []
+lecturas_finales_derecho = []
+lecturas_finales_izquierdo = []
+
+async def subtask():
+    async def get_filtered_distance(sensor, nombre):
+        readings = []
+        while len(readings) < 7:
+            if cancelar_lecturas:
+                return 0
+            value = await sensor.distance()
+            if value <= 1000:
+                readings.append(value)
+            await wait(10)
+        readings.remove(max(readings))
+        readings.remove(min(readings))
+        return sum(readings) / len(readings)
+
+    while True:
+        await wait(0)
+        if cancelar_lecturas:
+            return
+
+        dist_derecho = await get_filtered_distance(d_derecho, "derecho")
+        dist_izquierdo = await get_filtered_distance(d_izquierdo, "izquierdo")
+
+
+        if Direction==0:
+            continue
+        elif Direction == 10:
+            if dist_izquierdo == 0:
+                ratio = 1
+            else:
+                ratio = dist_derecho / dist_izquierdo
+
+            if ratio < ratio_inferior_counterclockwise
+
+            elif ratio > ratio_superior_counterclockwise:
+                
+        else:  #REPOSICIONES EN DIRECCION CLOCKWISE
+            if dist_derecho == 0 or dist_izquierdo==0:
+                ratio = 1
+            else:
+                ratio = dist_derecho / dist_izquierdo
+
+            if ratio < ratio_inferior_clockwise:
+
+            elif ratio > ratio_superior_clockwise:
+                print(str(ratio) + "tu")
+                reposiciones_lado[indice_lado_actual]['derecha'] += 1
+                reposiciones_lado[indice_lado_actual]['ratios'].append(ratio)
+                reposiciones_lado[indice_lado_actual]['lecturas'].append((dist_derecho, dist_izquierdo))
+                car.steer(-10); await wait(800)
+                car.steer(7); await wait(500)
+                car.steer(-3); await wait(250)
+
+async def subtask2():
+    global Primera_Linea, Direction, cancelar_lecturas
+    reloj_inicio_giro = StopWatch(); reloj_inicio_giro.reset()
+    while not (
+
+        await wait(0)
+        inventor_hub.light.on(await color_sensor.hsv())
+        await wait(0)
+
+    tiempo_inicios_giro.append(reloj_inicio_giro.time())
+    cancelar_lecturas = True
+    if Primera_Linea == 0:
+        hsv = await color_sensor.hsv()
+        Primera_Linea = 1
+    await wait(100)
+
+async def Clockwise():
+    global Limite_inferior_Clockwise, Limite_superior_Clockwise
+    reloj = StopWatch(); reloj.reset()
+    confirmaciones = 0
+    wait(500)
+    while reloj.time() < TIEMPO_MAX_ESPERA_SENSOR:
+        lectura = await d_derecho.distance()
+        if lectura > 1000:
+            confirmaciones += 1
+            if confirmaciones >= 20:
+                print("Giro confirmado derecha clockwise")
+                break
+        else:
+            confirmaciones = 0  
+        await wait(10)
+
+    tiempos_espera_derecho.append(reloj.time())
+    lecturas_finales_derecho.append(await d_derecho.distance())
+    tiempo_entre_deteccion_y_giro.append(tiempo_inicios_giro[-1])
+
+    car.steer(-35); await wait(1000)
+    while not Limite_inferior_Clockwise <= inventor_hub.imu.heading():
+        await wait(0)
+    car.steer(3); await wait(espera_salida_giro
+
+async def Counterclockwise():
+    global Limite_inferior_Counterclockwise, Limite_supeior_Counterclockwise_
+    reloj = StopWatch(); reloj.reset()
+    confirmaciones = 0
+    wait(500)
+    while reloj.time() < TIEMPO_MAX_ESPERA_SENSOR:
+        lectura = await d_izquierdo.distance()
+        if lectura > 1000:
+            confirmaciones += 1
+            if confirmaciones >= 20:
+                print("Giro confirmado izquierda counterclockwise")
+                break
+        else:
+            confirmaciones = 0  # Reinicia si se recibe una lectura vÃ¡lida
+        await wait(10)
+
+
+    tiempos_espera_izquierdo.append(reloj.time())
+    lecturas_finales_izquierdo.append(await d_izquierdo.distance())
+    tiempo_entre_deteccion_y_giro.append(tiempo_inicios_giro[-1])
+    
+    car.drive_power(velocidad_giros)
+    car.steer(35); await wait(1000) 
+    while not inventor_hub.imu.heading() <= Limite_inferior_Counterclockwise:
+        await wait(0)
+
+    Limite_inferior_Counterclockwise -= 88
+    Limite_supeior_Counterclockwise_ -= 88
+    inventor_hub.display.off()
+    car.drive_power(velocidad_rectas)
+
+async def main():
+    global Direction, cancelar_lecturas, indice_lado_actual
+
+    inventor_hub.imu.reset_heading(0)
+    print(inventor_hub.battery.voltage())
+    await wait(1000)
+    car.steer(-3)
+    car.drive_power(velocidad_rectas)
+
+    for _ in range(total_lados):
+        cancelar_lecturas = False
+        await multitask(subtask(), subtask2(), race=True)
+        if Direction == 10:
+            await Counterclockwise()
+        else:
+            await Clockwise()
+        indice_lado_actual += 1
+        inventor_hub.light.off()
+
+    def resumen(tiempos, lecturas, lado):
+        if tiempos:
+            print(f"\nResumen {lado}:")
+            print(f"  Tiempo promedio: {sum(tiempos)/len(tiempos):.2f} ms")
+            print(f"  Min: {min(tiempos)} ms, Max: {max(tiempos)} ms")
+        if lecturas:
+            print(f"  Lectura promedio: {sum(lecturas)/len(lecturas):.2f} mm")
+            print(f"  Min: {min(lecturas)} mm, Max: {max(lecturas)} mm")
+
+    resumen(tiempos_espera_derecho, lecturas_finales_derecho, "Derecho")
+    resumen(tiempos_espera_izquierdo, lecturas_finales_izquierdo, "Izquierdo")
+
+    print("\nResumen de reposiciones por lado:")
+    for i, lado in enumerate(reposiciones_lado):
+        print(f"Lado {i+1}: Izquierda={lado['izquierda']} / Derecha={lado['derecha']}")
+        if lado['ratios']:
+            print(f"  Ratios que causaron reposiciÃ³n: {['{:.2f}'.format(r) for r in lado['ratios']]}")
+            print(f"  Lecturas correspondientes (derecha, izquierda): {lado['lecturas']}")
+
+    await wait(tiempo_final)
+    print(f"DuraciÃ³n total: {watch_2.time()/1000} s")
+
+run_task(main())
+print("voltaje V")
+print(inventor_hub.battery.voltage()/1000)
