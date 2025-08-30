@@ -41,3 +41,9 @@ The repository consists of two parts. One is the code used for the Lego Mindstor
 To use the code with the robot, it is necessary to make sure that the LMS-ESp32 has its code and is running it. This only needs to be done once, since afterwards it is already downloaded and runs automatically when the robot is on. It is necessary for the Lego Mindstorms Inventor Hub to be running the Pybricks code. That is done by connecting the Lego Mindstorms Inventor Hub to a device via Bluetooth and running the code. The code downloads onto the robot once it is run, so that step only needs to be repeated once if the code has not been changed.
 
 ------------------------------------------------------------------------------------------------------------------
+Open Challenge:
+https://youtu.be/TwxgbmImKGQ
+
+Obstacle Challenge:
+https://youtube.com/shorts/AG4GDJoN5ew?feature=share
+
