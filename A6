@@ -1,0 +1,1122 @@
+------------------------------------------------ OBSTACLE CHALLENGE -------------------------------------------
+from pybricks.hubs import InventorHub
+from pybricks.parameters import Button, Axis, Color, Direction, Port, Side, Stop
+from pybricks.pupdevices import ColorSensor, Motor, UltrasonicSensor
+from pybricks.robotics import Car
+from pybricks.tools import wait, StopWatch
+from pupremote import PUPRemoteHub
+from pybricks.tools import wait, run_task
+
+############ DECLARATION OF EQUIPMENT NOT CONNECTED TO ESP32 ######
+inventor_hub = InventorHub(top_side=-Axis.Z, front_side=Axis.X)
+color_sensor = ColorSensor(Port.A)
+sensor_der = UltrasonicSensor(Port.C)
+sensor_izq = UltrasonicSensor(Port.B)
+motor_traccion = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+motor_direccion = Motor(Port.D, Direction.CLOCKWISE)
+car = Car(motor_direccion, motor_traccion, 40 )
+###### DECLARATION OF CHANNELS FOR INFORMATION EXTRACTION FROM ESP32 #####
+print(inventor_hub.battery.voltage())
+pr = PUPRemoteHub(Port.E)
+pr.add_channel('dists','hhh')
+pr.add_channel('bloqu', 'hhhhh')
+#### DECLARATION OF CAMERA AND SENSOR VARIABLES ####
+print("arrancando")
+
+
+Max_H_azul = 250
+Min_H_azul = 200
+Max_S_Azul = 95
+Min_S_Azul = 75
+Max_V_Azul = 75
+Min_V_Azul = 55
+Max_H_Rojo = 366
+Min_H_Rojo = 345
+Max_S_Rojo = 85
+Min_S_Rojo = 65
+Max_V_Rojo = 110
+Min_V_Rojo = 90
+Linea_Roja = 0
+Linea_Azul = 0
+direction = 0
+primera_linea = 0
+counter_variacion_angulos=0
+counter_tipo_giro=0
+lectura=0
+confirma = 0
+
+inventor_hub.imu.reset_heading(0)
+print(inventor_hub.battery.voltage())
+wait(1000)
+
+# Initial global variable
+counter_variacion_angulos = 0
+
+
+   
+def giro_con_imu(steering, angulo_obj, vel):
+
+    global counter_variacion_angulos
+
+   
+    # now you can use heading/reset_heading
+
+    # Adjust the target angle with the global variation
+    angulo_final = angulo_obj + counter_variacion_angulos
+
+    car.drive_speed(vel*10)
+    car.steer(steering)
+    if steering > 0:
+        if vel < 0:
+            while not inventor_hub.imu.heading() > angulo_final:
+                wait(5)
+        else:
+            # turning right (heading increases)
+            while not inventor_hub.imu.heading() < angulo_final:
+                wait(5)
+    else:
+        if vel < 0:
+            while not  inventor_hub.imu.heading() < angulo_final:
+                wait(5) 
+        else:
+            # turning left (heading decreases)
+            while not inventor_hub.imu.heading() > angulo_final:
+                wait(5)
+
+    car.steer(-4.8)
+
+def alto_temporal(): ###FOR TESTING STOP
+    car.drive_power(0)
+    wait(10000)
+
+# -------------------- FILTERED READINGS (5 measurements) --------------------
+# Rule: take 5 valid readings (0..1000 mm), discard >1000 mm, eliminate the highest and lowest, average the remaining 3.
+def _filtered_read(idx):
+    """
+    Reads channel idx (0=left, 1=right, 2=front) with 5 valid measurements (<=1000 mm),
+    eliminates the highest and lowest and returns the average of the remaining 3.
+    If it doesn't get 5 valid readings, uses best effort (trimmed if >=3, otherwise simple average).
+    """
+    vals = []
+    intentos = 0
+    while len(vals) < 5 and intentos < 20: 
+        try:
+            izq, der, front = pr.call('dists')  # format 'hhh' in mm
+            arr = (izq, der, front)
+            v = int(arr[idx])
+            if 0 <= v <= 1500:
+                vals.append(v)
+        except: 
+            pass
+        wait(10)
+        intentos += 1
+
+    if len(vals) >= 5:
+        vals.sort()
+        core = vals[1:-1]       # removes lowest and highest
+        return sum(core) // 3   # average of 3 values (integer mm)
+    elif len(vals) >= 3:
+        vals.sort()
+        core = vals[1:-1]
+        if core:
+            return sum(core) // len(core)
+        return sum(vals) // len(vals)
+    elif len(vals) > 0:
+        return sum(vals) // len(vals)
+
+    return 9999  # fallback "very far" if there were no valid readings
+
+def Distancia_Frontal():
+    return _filtered_read(2)
+
+def Dist_izq():
+    return _filtered_read(0)
+
+def Dist_der():
+    return _filtered_read(1)
+# --------------------------------------------------------------------------  
+####Counter functions###
+def Salida_CounterR():
+    print("Salida_CounterR")
+    car.drive_speed(200)
+    car.steer(-50)
+    while not inventor_hub.imu.heading() >= -60: ####BLOCK EVASION
+        wait(5)
+    car.steer(-5)
+    wait(2900)
+    print(inventor_hub.imu.heading())
+    car.drive_speed(100)
+    car.steer(40)
+    while not inventor_hub.imu.heading() <= -59: ####ADJUSTMENT TO FACE PIECES IN COLUMN 1
+        wait(5)
+    car.drive_power(0)
+    car.steer(-8)
+    wait(1000)
+def Counter_V_R1():
+    print("Counter_V_R1")
+    giro_con_imu(-35, 25, 20)
+    car.drive_speed(180)
+    giro_con_imu(30, 6, 20)
+    car.steer(-4)
+    car.drive_speed(200)
+    confirma = 0
+    while confirma < 5:
+        sensor_front = Distancia_Frontal()
+        while not (sensor_front <= 350):
+            sensor_front = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+
+    giro_con_imu(36, -45, 30)
+    giro_con_imu(45, -150, 20)
+    car.drive_speed(150)
+    confirma = 0
+    while confirma < 5:
+        sensor_front = Distancia_Frontal()
+        while not (sensor_front <= 550):
+            sensor_front = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+
+    print(sensor_front)
+    giro_con_imu(-40, -100, 20)
+    car.drive_power(0)
+    car.steer(2)
+    wait(250)
+def Counter_V_V1():
+    if counter_variacion_angulos <= -85:
+        giro_con_imu(35, -65, 20)
+        print("giro ajustado ")
+    else:
+        print("nelson")
+        giro_con_imu(35, -45, 20)
+
+    print("Counter_V_V1")
+    car.drive_power(30)
+    car.steer(-5)
+    wait(2100)  # ADVANCE
+
+    giro_con_imu(-30, -45, 20)
+    car.drive_power(20)
+    confirma = 0
+    while confirma < 5:
+        sensor_esq_der = Dist_der()
+        while not (sensor_esq_der <= 550):
+            sensor_esq_der = Dist_der()
+            wait(2)
+        confirma += 1
+
+    giro_con_imu(25, -80, 20)
+    car.steer(-4)
+    car.drive_power(0)
+def Counter_V3_N1():
+    print("Counter_V3_N1")
+    print(counter_variacion_angulos)
+
+    car.steer(-13)
+    car.drive_power(25)
+
+    # This color wait doesn't use distance → NOT modified
+    sensor_front = Distancia_Frontal()
+    while not Min_H_Rojo <= (color_sensor.hsv())[0] <= Max_H_Rojo:
+        wait(5)
+
+    print("Distancia frontal V3_N1 " + str(sensor_front))
+
+    giro_con_imu(35, -88, 20)
+    car.steer(-4.9)
+    car.drive_power(0)
+
+    print("Counter_R3_V1")
+    car.steer(-4.8)
+    print("nelson")
+    giro_con_imu(40, -100, 20)
+    print(inventor_hub.imu.heading())
+
+    car.drive_speed(100)
+
+    # -------- CONFIRM Dist_izq() <= 200 --------
+    confirma = 0
+    while confirma < 5:
+        sensor_esq_iz = Dist_izq()
+        sensor_front = Distancia_Frontal()
+        while not (sensor_esq_iz <= 200):
+            sensor_esq_iz = Dist_izq()
+            sensor_front = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+
+    print(sensor_esq_iz)
+
+    giro_con_imu(-40, 0, 20)
+    car.drive_speed(100)
+    car.steer(-4.8)
+
+    # -------- CONFIRM Distancia_Frontal() <= 650 --------
+    confirma = 0
+    while confirma < 5:
+        sensor_front = Distancia_Frontal()
+        while not (sensor_front <= 650):
+            sensor_front = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+        print(str(sensor_front))
+
+    giro_con_imu(40, -92, 25)
+    car.drive_speed(200)
+    car.steer(-4.8)
+    car.drive_power(0)
+
+    print("termine R3 V1")
+def Counter_SR_V1():
+    print("Counter_SR_V1")
+    car.steer(-4.8)
+
+    if counter_variacion_angulos <= -85:
+        print("ajustado")
+        giro_con_imu(40, -115, 20)
+
+        car.drive_speed(200)
+
+        # -------- CONFIRM Dist_izq() <= 200 --------
+        confirma = 0
+        while confirma < 3:
+            sensor_esq_iz = Dist_izq()
+            sensor_front = Distancia_Frontal()
+            while not (sensor_esq_iz <= 300):
+                sensor_esq_iz = Dist_izq()
+                sensor_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+
+        print(sensor_esq_iz)
+
+        giro_con_imu(-50, -55, 25)
+        car.steer(-4.8)
+
+        # -------- CONFIRM Dist_der() <= 470 --------
+        confirma = 0
+        while not confirma >= 5:
+            sensor_der = Dist_der()
+            while not (sensor_der <= 580):
+                sensor_der = Dist_der()
+                wait(2)
+            confirma += 1
+            print(str(sensor_der))
+
+        giro_con_imu(40, -90, 25)
+        car.drive_speed(200)
+        car.steer(-4.8)
+        car.drive_power(0)
+
+    else:
+        print("nelson")
+        giro_con_imu(40, -98, 20)
+        print(inventor_hub.imu.heading())
+
+        car.drive_speed(200)
+
+        # -------- CONFIRM Dist_izq() <= 200 --------
+        confirma = 0
+        while not confirma >= 5:
+            sensor_esq_iz = Dist_izq()
+            sensor_front = Distancia_Frontal()
+            while not (sensor_esq_iz <= 350):
+                sensor_esq_iz = Dist_izq()
+                sensor_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+
+        print(sensor_esq_iz)
+
+        giro_con_imu(-50, -50, 25)
+        car.drive_speed(200)
+        car.steer(-4.5)
+
+        # -------- CONFIRM Distancia_Frontal() <= 500 --------
+        confirma = 0
+        while not confirma >= 5:
+            sensor_front = Distancia_Frontal()
+            while not (sensor_front <= 580):
+                sensor_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+            print(str(sensor_front))
+
+        giro_con_imu(50, -95, 25)
+        car.drive_speed(200)
+        car.steer(-4.8)
+        car.drive_power(0)
+
+        print("termine SR V1")
+def Counter_EVASION():
+    global counter_tipo_giro, fin
+
+    # thresholds (adjust to your field)
+    UMBRAL_ALTO = 30
+    UMBRAL_LEJOS = 1000
+    UMBRAL_FRONT1 = 900
+    UMBRAL_FRONT2 = 700
+
+    fin = 0
+    car.drive_power(30)
+
+    while True:
+
+        # -------- CONFIRM FRONTAL DISTANCE --------
+        confirma = 0
+        while confirma < 5:
+            dist_front = Distancia_Frontal()
+            while not (dist_front <= 1500):   # safe generic condition
+                dist_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+
+        # -------- CONFIRM LEFT READING --------
+        confirma = 0
+        while confirma < 5:
+            izq_mm = sensor_izq.distance()
+            while not (izq_mm >= 0):
+                izq_mm = sensor_izq.distance()
+                wait(2)
+            confirma += 1
+
+        block_ID, x, y, ancho, alto = Color_Bloque()
+
+        try:
+            block_ID = int(block_ID)
+        except:
+            block_ID = 0
+        alto = int(alto or 0)
+
+        # --- BLOCK DETECTED? ---
+        if (block_ID in (1, 2)) and (alto > UMBRAL_ALTO):
+            if block_ID == 1:
+                print("Obstaculo Verde")
+                Counter_EVASION_VERDE()
+                counter_tipo_giro = 1
+            else:
+                print("Obstaculo Rojo")
+                Counter_EVASION_ROJA()
+                counter_tipo_giro = 2
+
+            fin = 1
+            break
+
+        # --- "I SEE NOTHING" ---
+        if (izq_mm > UMBRAL_LEJOS) and (dist_front < UMBRAL_LEJOS):
+
+            # -------- CONFIRM APPROACH (dist_front < UMBRAL_FRONT1) --------
+            confirma = 0
+            while confirma < 5:
+                dist_front = Distancia_Frontal()
+                while not (dist_front < UMBRAL_FRONT1 and izq_mm > UMBRAL_LEJOS):
+                    dist_front = Distancia_Frontal()
+                    wait(2)
+                confirma += 1
+
+            print("no veo nada")
+
+            if counter_variacion_angulos <= -616:
+                parqueo()
+
+            car.steer(-4)
+            car.drive_power(25)
+
+            # -------- CONFIRM dist_front <= UMBRAL_FRONT2 --------
+            confirma = 0
+            while confirma < 5:
+                dist_front = Distancia_Frontal()
+                while not (dist_front <= UMBRAL_FRONT2):
+                    dist_front = Distancia_Frontal()
+                    wait(2)
+                confirma += 1
+
+            giro_con_imu(35, -170, 20)
+            car.steer(-5)
+            car.drive_power(-15)
+            wait(1500)
+
+            car.drive_power(20)
+
+            # here there's NO distance, only color → not touched
+            while not Min_H_Rojo <= (color_sensor.hsv())[0] <= Max_H_Rojo:
+                wait(5)
+
+            car.drive_power(-20)
+            wait(500)
+            car.drive_power(0)
+            counter_tipo_giro = 2
+            fin = 1
+            print("LLegada central")
+            break
+
+        wait(20)
+
+    print("Bucle finalizado")
+    wait(20)
+def Counter_SR_N1():
+    print("Counter_SR_N1")
+    car.drive_power(25)
+    car.steer(-10)
+
+    # -------- CONFIRM Dist_der() <= 900 --------
+    confirma = 0
+    while confirma < 5:
+        sensor_esq_der = Dist_der()
+        while not (sensor_esq_der <= 450):
+            sensor_esq_der = Dist_der()
+            wait(2)
+            print(str(sensor_esq_der))
+        confirma += 1
+
+    giro_con_imu(40, -85, 25)
+    confirma = 0
+    while confirma < 5:
+        dist_iz = sensor_izq.distance()
+        while not (dist_iz < 1000):
+            dist_iz = sensor_izq.distance()
+            wait(2)
+        confirma += 1
+    car.drive_power(0)
+    car.drive_power(-20)
+    car.drive_power(0)
+def Counter_R3_N1():
+    global counter_variacion_angulos
+    if counter_variacion_angulos == 0:
+        Counter_SR_N1()
+    else:
+        print("Counter_R3_N1")
+        car.steer(-3)
+        car.drive_speed(200)
+        wait(2000)
+
+        # -------- CONFIRM sensor_izq.distance() < 600 --------
+        confirma = 0
+        while confirma < 5:
+            dist_iz = sensor_izq.distance()
+            while not (dist_iz < 1000):
+                dist_iz = sensor_izq.distance()
+                wait(2)
+            confirma += 1
+
+        print(dist_iz)
+
+        car.drive_power(0)
+        print(inventor_hub.imu.heading())
+
+    
+def parqueo():
+    print("Parqueo")
+    car.drive_power(20)
+    wait(700)
+    car.drive_power(0)
+    car.steer(-38)
+    car.drive_power(-40)
+
+    while not inventor_hub.imu.heading() <= -785:
+        wait(5)
+
+    print(inventor_hub.imu.heading())
+    car.steer(5)
+
+    # -------- CONFIRM Distancia_Frontal() > 900 --------
+    confirma = 0
+    while confirma < 5:
+        dist_fr = Distancia_Frontal()
+        while not (dist_fr > 900):
+            dist_fr = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+
+    car.drive_power(0)
+    wait(60000)
+def Counter_SV_N1():
+    print("Counter_SV_N1")
+    print(counter_variacion_angulos)
+
+    giro_con_imu(-25, -15, 25)
+    car.drive_power(35)
+
+    # -------- CONFIRM Distancia_Frontal() <= 585 --------
+    confirma = 0
+    while confirma < 5:
+        sensor_front = Distancia_Frontal()
+        while not (sensor_front <= 655):
+            sensor_front = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+
+    print("Distancia antes de girar SV_N1 " + str(sensor_front))
+
+    giro_con_imu(50, -90, 20)
+    car.steer(-7)
+    car.drive_power(0)
+def Counter_EVASION_VERDE():
+    global counter_tipo_giro, fin
+    print("Evasion verde")
+
+    car.drive_power(20)
+    giro_con_imu(30, -140, 20)
+    car.steer(-3)
+
+    # -------- CONFIRM Dist_izq() <= 200 --------
+    confirma = 0
+    while confirma < 5:
+        esq_izq = Dist_izq()
+        while not (esq_izq <= 300):
+            esq_izq = Dist_izq()
+            wait(2)
+        confirma += 1
+
+    giro_con_imu(-30, -98, 20)
+    car.drive_speed(200)
+    car.steer(3)
+
+    print(inventor_hub.imu.heading())
+
+    # -------- CONFIRM (sensor_front < 1000) OR blue --------
+    confirma = 0
+    while not confirma >= 7:
+        dist_izq = sensor_izq.distance()
+        while not (dist_izq > 1000):
+            dist_izq = sensor_izq.distance()
+            wait(2)
+        confirma += 1
+    # ------- Parking Case -------
+    if inventor_hub.imu.heading() <= -700:
+        print("Parqueo")
+        parqueo()
+
+    # ------- Normal case -------
+    else:
+        print("ya")
+        car.drive_power(20)
+        giro_con_imu(30, -105, 25)
+        car.drive_power(0)
+        counter_tipo_giro = 1
+        fin = 1
+        print("llegada esquina")
+        wait(250)
+def Counter_EVASION_ROJA():
+    global counter_tipo_giro, fin, counter_variacion_angulos, muro
+
+    # ---------- WALL CASE ----------
+    if counter_variacion_angulos <= -261 and muro == 0:
+        print("muro")
+        giro_con_imu(-25, -65, 20)
+        wait(600)
+        giro_con_imu(25, -90, 20)
+        car.drive_power(40)
+        car.steer(-4.8)
+
+        # -------- CONFIRM 575 <= sensor_front <= 625 --------
+        confirma = 0
+        while confirma < 5:
+            sensor_front = Distancia_Frontal()
+            while not sensor_front <= 625:
+                sensor_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+
+        giro_con_imu(43, -190, 20)
+        car.drive_power(35)
+        car.steer(-4)
+        car.drive_power(-20)
+        wait(1000)
+
+        block_ID, x, y, ancho, alto = Color_Bloque()
+
+        if block_ID == 1:
+            car.drive_power(-20)
+            wait(500)
+            car.drive_power(0)
+            car.steer(-4.8)
+            counter_tipo_giro = 2
+            fin = 1
+        else:
+            car.steer(-4.8)
+            car.drive_power(20)
+            while not Min_H_Rojo <= color_sensor.hsv()[0] <= Max_H_Rojo:
+                wait(5)
+            car.drive_power(0)
+            car.steer(-4.8)
+            counter_tipo_giro = 2
+            fin = 1
+
+    # ---------- PARKING CASE ----------
+    elif counter_variacion_angulos <= -616:
+        giro_con_imu(-25, -70, 20)
+        wait(1300)
+        giro_con_imu(25, -90, 20)
+
+        # -------- CONFIRM sensor_front <= 1000 --------
+        confirma = 0
+        while confirma < 5:
+            sensor_front = Distancia_Frontal()
+            while not (sensor_front <= 1000):
+                sensor_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+
+        parqueo()
+
+    # ---------- NORMAL CASE ----------
+    else:
+        print("evasion roja")
+        car.drive_power(20)
+        giro_con_imu(-35, -40, 20)
+        car.steer(-2)
+
+        # -------- CONFIRM Dist_der() <= 300 --------
+        confirma = 0
+        while confirma < 5:
+            sensor_der = Dist_der()
+            while not (sensor_der <= 300):
+                sensor_der = Dist_der()
+                wait(2)
+            confirma += 1
+
+        giro_con_imu(35, -82, 20)
+        car.steer(-5)
+        wait(250)
+
+        car.drive_speed(200)
+
+        # -------- CONFIRM sensor_izq.distance() > 1000 --------
+        confirma = 0
+        while not confirma >= 7:
+            dist_izq = sensor_izq.distance()
+            while not (dist_izq > 1000):
+                dist_izq = sensor_izq.distance()
+                wait(2)
+            confirma += 1
+
+        # -------- CONFIRM 615 <= front <= 630 --------
+        confirma = 0
+        while confirma < 5:
+            sensor_front = Distancia_Frontal()
+            while not (sensor_front <= 700):
+                sensor_front = Distancia_Frontal()
+                wait(2)
+            confirma += 1
+
+        print("pared y giro " + str(sensor_front))
+
+        giro_con_imu(35, -168, 20)
+        car.steer(-5)
+        car.drive_power(32)
+
+        # red color → no distances
+        while not Min_H_Rojo <= color_sensor.hsv()[0] <= Max_H_Rojo:
+            wait(5)
+
+        car.drive_speed(-200)
+        wait(1800)
+
+        block_ID, x, y, ancho, alto = Color_Bloque()
+
+        if block_ID == 1:
+            car.drive_power(0)
+            car.steer(-4.8)
+            counter_tipo_giro = 2
+            fin = 1
+        else:
+            car.steer(-2.8)
+            car.drive_speed(200)
+            while not Min_H_Rojo <= color_sensor.hsv()[0] <= Max_H_Rojo:
+                wait(5)
+            car.drive_power(0)
+            car.steer(-2.8)
+            counter_tipo_giro = 2
+            fin = 1
+
+        print("LLegada central")
+def Counter_SR_R1():
+    print("Counter_SR_R1")
+    car.drive_power(-25)
+    wait(500)
+    car.drive_power(25)
+    giro_con_imu(-38, -25, 25)
+    car.steer(0)
+    sensor_front = Distancia_Frontal()
+    while not sensor_front <= 250: #if you want to center more, change this value 
+        sensor_front = Distancia_Frontal()
+        wait(0)
+    giro_con_imu(40, -90, 25)    
+    car.steer(0)
+    while not sensor_izq.distance() < 1000:
+        wait(5)
+    print(sensor_izq.distance())  
+    giro_con_imu(32, -140, 25)
+    car.steer(0)
+    sensor_front = Distancia_Frontal()
+    while not sensor_front <= 500: #if you want to center more, change this value 
+        sensor_front = Distancia_Frontal()
+        wait(0)
+    giro_con_imu(-30, -94, 25)
+    car.steer(-2)
+def Salida_CounterV():
+    print("Salida_CounterV")
+    car.drive_power(22)
+    car.steer(30)
+
+    while not inventor_hub.imu.heading() <= -120:
+        wait(0)
+
+    car.steer(-30)
+    while not inventor_hub.imu.heading() >= -90:
+        wait(5)
+
+    car.steer(10)
+
+    # -------- CONFIRM ONLY THE DISTANCE <= 250 --------
+    confirma = 0
+    while confirma < 5:
+        sensor_front = Distancia_Frontal()
+        while not (sensor_front <= 300):
+            sensor_front = Distancia_Frontal()
+            wait(2)
+        confirma += 1
+
+    car.steer(-40)
+    while not inventor_hub.imu.heading() >= -10:
+        wait(5)
+
+    car.steer(4)
+
+    # -------- THIS READING DOESN'T NEED CONFIRMATION --------
+    dist_front = Distancia_Frontal()
+
+    # -------- DON'T touch COLOR --------
+    while not Min_H_azul <= color_sensor.hsv()[0] <= Max_H_azul:
+        wait(5)
+
+    giro_con_imu(35, -15, 20)
+    print(dist_front)
+    car.drive_power(0)
+    wait(200)
+def Salida_Counter():
+    print("Salida_Counter")
+    car.steer(55)
+    wait(300)
+    car.drive_speed(100)
+    while not inventor_hub.imu.heading() <= -70 * 0.94:
+        wait(5)
+        
+    car.drive_power(0)
+    wait(500)
+def Color_Bloque():
+    block_ID, x, y, ancho, alto = pr.call('bloqu')
+    return block_ID, x, y, ancho, alto
+def Counter_navegacion_esquina():
+    block_ID, x, y, ancho, alto = Color_Bloque()
+    if block_ID == 1 and alto>50:
+        print("Primera Columna VERDE")
+        Counter_V_V1()#when first and second block are green
+        wait(250)
+        Counter_EVASION()
+    elif block_ID == 2 and alto>50:
+        print("Primera Columna ROJA")
+        Counter_V_R1()#when first block is green and second is red
+        wait(250)
+        Counter_EVASION()
+    else: 
+        print("Primera Columna sin Obstaculos") ##HERE SHOULD GO THE FUNCTION WHEN THERE'S NO BLOCK
+        if counter_vari
+
+------------------------------------------------ OPEN CHALLENGE -------------------------------------------
+from pybricks.hubs import InventorHub
+from pybricks.parameters import Axis, Direction, Port
+from pybricks.pupdevices import ColorSensor, Motor, UltrasonicSensor
+from pybricks.robotics import Car
+from pybricks.tools import StopWatch, multitask, run_task, wait
+
+# Set up all devices.
+inventor_hub = InventorHub(top_side=-Axis.Z, front_side=Axis.X)
+color_sensor = ColorSensor(Port.A)
+d_derecho = UltrasonicSensor(Port.C)
+d_izquierdo = UltrasonicSensor(Port.B)
+watch_2 = StopWatch()
+traccion = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+direccion = Motor(Port.D, Direction.CLOCKWISE)
+car = Car(direccion, traccion, 50)
+
+# Initialize variables.
+Limite_inferior_Clockwise = 70
+Limite_superior_Clockwise = 91
+Limite_inferior_Counterclockwise = -72
+Limite_supeior_Counterclockwise_ = -91
+Max_H_Azul = 235
+Min_H_Azul = 215
+Max_S_Azul = 95
+Min_S_Azul = 60
+Max_V_Azul = 75
+Min_V_Azul = 50
+Max_H_Rojo = 366
+Min_H_Rojo = 345
+Max_S_Rojo = 85
+Min_S_Rojo = 65
+Max_V_Rojo = 42
+Min_V_Rojo = 22
+Direction = 0
+Primera_Linea = 0
+cancelar_lecturas = False
+velocidad_rectas=40
+velocidad_giros=30
+TIEMPO_MAX_ESPERA_SENSOR = 1250
+ratio_inferior_counterclockwise=0.75 #change tolerance
+ratio_superior_counterclockwise=1.8
+ratio_inferior_clockwise=0.55
+ratio_superior_clockwise=1.40
+espera_salida_giro=2000 #time in ms before starting ratio reading after turning
+tiempo_final=2000 #SECONDS OF ADVANCE TO FINISH PROCESS
+diferencia_distancia=0
+
+tiempos_espera_derecho = []
+tiempos_espera_izquierdo = []
+lecturas_finales_derecho = []
+lecturas_finales_izquierdo = []
+
+# Record of repositions by side
+total_lados = 12
+reposiciones_lado = [{'izquierda': 0, 'derecha': 0, 'ratios': [], 'lecturas': []} for _ in range(total_lados)]
+tiempo_inicios_giro = []
+tiempo_entre_deteccion_y_giro = []
+indice_lado_actual = 0
+
+async def subtask():
+    async def get_filtered_distance(sensor, nombre):
+        readings = []
+        while len(readings) < 7:
+            if cancelar_lecturas:
+                return 0
+            value = await sensor.distance()
+            if value <= 1000:
+                readings.append(value)
+            await wait(10)
+        readings.remove(max(readings))
+        readings.remove(min(readings))
+        return sum(readings) / len(readings)
+
+    while True:
+        await wait(0)
+        if cancelar_lecturas:
+            return
+
+        dist_derecho = await get_filtered_distance(d_derecho, "derecho")
+        dist_izquierdo = await get_filtered_distance(d_izquierdo, "izquierdo")
+
+
+        if Direction==0: ####REPOSITIONS IN FIRST LANE#####
+            pass
+            diferencia_distancia=dist_derecho-dist_izquierdo
+            if -100<diferencia_distancia<100:
+               pass
+            elif -100>=diferencia_distancia:
+                car.steer(15); await wait(600)
+                car.steer(-14); await wait(580)
+                car.steer(-6); await wait(3000)
+                
+            elif 100<diferencia_distancia:
+                car.steer(-13); await wait(650)
+                car.steer(11); await wait(500)
+                car.steer(-6); await wait(3000)
+                
+            else:
+                pass
+            
+            
+        elif Direction == 10:  #REPOSITIONS IN COUNTERCLOCKWISE DIRECTION
+            if dist_izquierdo == 0:
+                ratio = 1
+            else:
+                ratio = dist_derecho / dist_izquierdo
+
+            if ratio < ratio_inferior_counterclockwise:
+                print(str(ratio) + "tu")
+                reposiciones_lado[indice_lado_actual]['izquierda'] += 1
+                reposiciones_lado[indice_lado_actual]['ratios'].append(ratio)
+                reposiciones_lado[indice_lado_actual]['lecturas'].append((dist_derecho, dist_izquierdo))
+                
+                car.steer(15); await wait(850)
+                car.steer(-14); await wait(860)
+                car.steer(-3); await wait(500)
+
+            elif ratio > ratio_superior_counterclockwise:
+                print(str(ratio) + "yo")
+                reposiciones_lado[indice_lado_actual]['derecha'] += 1
+                reposiciones_lado[indice_lado_actual]['ratios'].append(ratio)
+                reposiciones_lado[indice_lado_actual]['lecturas'].append((dist_derecho, dist_izquierdo))
+                car.steer(-21); await wait(800)
+                car.steer(12); await wait(480)
+                car.steer(-3); await wait(500)
+        else:  #REPOSITIONS IN CLOCKWISE DIRECTION
+            if dist_derecho == 0 or dist_izquierdo==0:
+                ratio = 1
+            else:
+                ratio = dist_derecho / dist_izquierdo
+
+            if ratio < ratio_inferior_clockwise:
+                print(str(ratio) + "yo")
+                reposiciones_lado[indice_lado_actual]['izquierda'] += 1
+                reposiciones_lado[indice_lado_actual]['ratios'].append(ratio)
+                reposiciones_lado[indice_lado_actual]['lecturas'].append((dist_derecho, dist_izquierdo))
+                car.steer(17); await wait(700)
+                car.steer(-15); await wait(700)
+                car.steer(-5); await wait(500) # has 500ms more just to test if it helps. original 250
+
+            elif ratio > ratio_superior_clockwise:
+                print(str(ratio) + "tu")
+                reposiciones_lado[indice_lado_actual]['derecha'] += 1
+                reposiciones_lado[indice_lado_actual]['ratios'].append(ratio)
+                reposiciones_lado[indice_lado_actual]['lecturas'].append((dist_derecho, dist_izquierdo))
+                car.steer(-20); await wait(890)
+                car.steer(10); await wait(500)
+                car.steer(-5); await wait(600) # has 500ms more just to see if it helps. original 250
+
+async def subtask2():
+    global Primera_Linea, Direction, cancelar_lecturas
+    reloj_inicio_giro = StopWatch(); reloj_inicio_giro.reset()
+    # Wait only for the color that corresponds according to direction
+    while not (
+        (Direction == 10 and Min_H_Azul <= (await color_sensor.hsv())[0] <= Max_H_Azul) or
+        (Direction == 20 and Min_H_Rojo <= (await color_sensor.hsv())[0] <= Max_H_Rojo) or
+        (Direction == 0 and (Min_H_Azul <= (await color_sensor.hsv())[0] <= Max_H_Azul or Min_H_Rojo <= (await color_sensor.hsv())[0] <= Max_H_Rojo))
+    ):
+
+        await wait(0)
+        inventor_hub.light.on(await color_sensor.hsv())
+        await wait(0)
+
+    tiempo_inicios_giro.append(reloj_inicio_giro.time())
+    cancelar_lecturas = True
+    if Primera_Linea == 0:
+        hsv = await color_sensor.hsv()
+        Primera_Linea = 1
+        Direction = 10 if Min_H_Azul <= hsv[0] <= Max_H_Azul else 20
+    await wait(100)
+
+async def Clockwise():
+    global Limite_inferior_Clockwise, Limite_superior_Clockwise
+    reloj = StopWatch(); reloj.reset()
+    confirmaciones = 0
+    car.steer(9)
+    wait(100) #ORIGINAL 500
+    while reloj.time() < TIEMPO_MAX_ESPERA_SENSOR:
+        lectura = await d_derecho.distance()
+        if lectura > 800:
+            confirmaciones += 1
+            if confirmaciones >= 20:
+                print("Giro confirmado derecha clockwise")
+                break
+        else:
+            confirmaciones = 0  # Reset if a valid reading is received
+        await wait(10)
+
+    tiempos_espera_derecho.append(reloj.time())
+    lecturas_finales_derecho.append(await d_derecho.distance())
+    tiempo_entre_deteccion_y_giro.append(tiempo_inicios_giro[-1])
+
+#TURN EXECUTION
+    car.steer(-40); await wait(50)
+    while not Limite_inferior_Clockwise <= inventor_hub.imu.heading():
+        await wait(0)
+    print(inventor_hub.imu.heading())
+    car.steer(-3); await wait(espera_salida_giro) #####POSITION AFTER TURNING
+
+    print("ANGULO LUEGO DE GIRO")
+    print(inventor_hub.imu.heading())
+ ####delete
+    Limite_inferior_Clockwise += 88
+    Limite_superior_Clockwise += 88
+    inventor_hub.display.off()
+
+######### COUNTERCLOCKWISE TURNS #########
+async def Counterclockwise():
+    global Limite_inferior_Counterclockwise, Limite_supeior_Counterclockwise_
+    reloj = StopWatch(); reloj.reset()
+    confirmaciones = 0
+    wait(500)
+    while reloj.time() < TIEMPO_MAX_ESPERA_SENSOR:
+        lectura = await d_izquierdo.distance()
+        if lectura > 1000:
+            confirmaciones += 1
+            if confirmaciones >= 20:
+                print("Giro confirmado izquierda counterclockwise")
+                break
+        else:
+            confirmaciones = 0  # Reset if a valid reading is received
+        await wait(10)
+
+
+    tiempos_espera_izquierdo.append(reloj.time())
+    lecturas_finales_izquierdo.append(await d_izquierdo.distance())
+    tiempo_entre_deteccion_y_giro.append(tiempo_inicios_giro[-1])
+    
+    car.drive_power(velocidad_giros)
+    car.steer(40); await wait(100) 
+    while not inventor_hub.imu.heading() <= Limite_inferior_Counterclockwise:
+        await wait(0)
+    car.steer(-6); await wait(espera_salida_giro)
+    car.drive_power(0)
+    wait(1000)
+
+    Limite_inferior_Counterclockwise -= 88
+    Limite_supeior_Counterclockwise_ -= 88
+    inventor_hub.display.off()
+    car.drive_power(velocidad_rectas)
+
+async def main():
+    global Direction, cancelar_lecturas, indice_lado_actual
+
+    inventor_hub.imu.reset_heading(0)
+    print(inventor_hub.battery.voltage())
+    car.steer(-6) ###VERY SMALL VARIATIONS (0.5 OR 1)
+    await wait(1000)
+    
+    car.drive_power(velocidad_rectas)
+
+    for _ in range(total_lados):
+        cancelar_lecturas = False
+        await multitask(subtask(), subtask2(), race=True)
+        if Direction == 10:
+            await Counterclockwise()
+        else:
+            await Clockwise()
+        indice_lado_actual += 1
+        inventor_hub.light.off()
+
+    # Show statistics
+    def resumen(tiempos, lecturas, lado):
+        if tiempos:
+            print(f"\nResumen {lado}:")
+            print(f"  Tiempo promedio: {sum(tiempos)/len(tiempos):.2f} ms")
+            print(f"  Min: {min(tiempos)} ms, Max: {max(tiempos)} ms")
+        if lecturas:
+            print(f"  Lectura promedio: {sum(lecturas)/len(lecturas):.2f} mm")
+            print(f"  Min: {min(lecturas)} mm, Max: {max(lecturas)} mm")
+
+    resumen(tiempos_espera_derecho, lecturas_finales_derecho, "Derecho")
+    resumen(tiempos_espera_izquierdo, lecturas_finales_izquierdo, "Izquierdo")
+
+    print("\nResumen de reposiciones por lado:")
+    for i, lado in enumerate(reposiciones_lado):
+        print(f"Lado {i+1}: Izquierda={lado['izquierda']} / Derecha={lado['derecha']}")
+        if lado['ratios']:
+            print(f"  Ratios que causaron reposición: {['{:.2f}'.format(r) for r in lado['ratios']]}")
+            print(f"  Lecturas correspondientes (derecha, izquierda): {lado['lecturas']}")
+
+    if tiempo_entre_deteccion_y_giro:
+        print("\nTiempos desde detección de línea hasta inicio de giro (por lado):")
+        for i, t in enumerate(tiempo_entre_deteccion_y_giro):
+            print(f"  Lado {i+1}: {t} ms")
+        print(f"  Promedio: {sum(tiempo_entre_deteccion_y_giro)/len(tiempo_entre_deteccion_y_giro):.2f} ms")
+        print(f"  Min: {min(tiempo_entre_deteccion_y_giro)} ms, Max: {max(tiempo_entre_deteccion_y_giro)} ms")
+
+    await wait(tiempo_final)
+    print(f"Duración total: {watch_2.time()/1000} s")
+
+run_task(main())
+print("voltaje V")
+print(inventor_hub.battery.voltage()/1000)
