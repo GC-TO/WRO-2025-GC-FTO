@@ -88,7 +88,7 @@ The Future Engineers category challenges teams to design self-driving robots cap
 |-------------|-------|----------|----------|
 | Color Sensor | LEGO Mindstorms | 1 | Floor line detection (blue/orange) |
 | Ultrasonic Sensors | LEGO Mindstorms | 2 | Lateral wall distance measurement |
-| ToF Laser Sensors | VL53L0X | 3 | Precise distance measurement (1 front, 2 at 45°) |
+| Ultrasonic Sensors | Arduino | 3 | Precise distance measurement (1 front, 2 at 45°) |
 | AI Camera | HuskyLens | 1 | Object and color detection at distance |
 | IMU | Built into Inventor Hub | 1 | Precise angle measurement for turns |
 
@@ -137,7 +137,7 @@ The Future Engineers category challenges teams to design self-driving robots cap
 **LMS-ESP32 (Sensor Coprocessor)**
 ```
 ├── Sensor Data Acquisition
-│   ├── VL53L0X ToF sensors (I²C)
+│   ├── Ultrasonic sensors (I²C)
 │   ├── HuskyLens camera (UART)
 │   └── Lighting system control
 │
